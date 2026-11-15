@@ -10,9 +10,14 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: pwsh
+
 jobs:
   build:
-    runs-on: windows-2025
+    # windows-2025 no longer ships Visual Studio 2022, which the windows-x64 CMake preset needs.
+    runs-on: windows-2022
     permissions:
       contents: write
       id-token: write
@@ -25,22 +30,22 @@ jobs:
           go-version-file: go.mod
 
       - name: Go checks
-        shell: pwsh
         run: |
+          # A non-zero exit from a native command fails the step, not only the last one.
+          $PSNativeCommandUseErrorActionPreference = $true
           go vet ./...
           go test -race ./...
 
       - name: Build the plugin
-        shell: pwsh
         working-directory: obs-plugin
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           cmake --preset windows-ci-x64
           cmake --build --preset windows-ci-x64
           cmake --install build_x64 --config RelWithDebInfo --prefix "$env:RUNNER_TEMP\out"
 
       - name: Package
         id: package
-        shell: pwsh
         run: |
           $version = (Get-Content obs-plugin/buildspec.json | ConvertFrom-Json).version
           if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne "v$version") {
@@ -67,7 +72,6 @@ jobs:
 
       - name: Publish the release
         if: github.ref_type == 'tag'
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
