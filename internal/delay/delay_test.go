@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/flv"
+	"github.com/rechedev9/clipdelay/internal/flv"
 )
 
 const ms = int64(time.Millisecond)

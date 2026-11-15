@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 Luis Reche
 #include "dock.hpp"
 
 #include <QHBoxLayout>
@@ -109,7 +111,7 @@ void Dock::refresh()
 	}
 	if (!s.running) {
 		state->setText(tr_("State.Stopped"));
-		detail->setText(QString());
+		detail->setText(s.exitMessage);
 		return;
 	}
 	if (!s.ingesting && s.upstream.isEmpty()) {

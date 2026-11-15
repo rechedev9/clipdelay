@@ -21,11 +21,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/relay"
+	"github.com/rechedev9/clipdelay/internal/relay"
 )
 
-const usage = "comandos: partida (delay de partida), fin (directo cuando el público vea el final), " +
-	"<segundos> o una duración (30, 90s, 2m), live (directo ya), status, quit"
+const usage = "commands: match|partida (match delay), end|fin (live once viewers see the end), " +
+	"<seconds> or a duration (30, 90s, 2m), live, status, json, quit"
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:1935", "address OBS publishes to")

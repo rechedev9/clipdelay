@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 Luis Reche
 #pragma once
 
 #include <QObject>
@@ -17,6 +19,8 @@ struct EngineStatus {
 	QString upstream;
 	int reconnects = 0;
 	QString lastError;
+	// exitMessage is the engine's last output line when it exited with an error.
+	QString exitMessage;
 };
 
 struct EngineConfig {
@@ -52,4 +56,5 @@ private:
 	QProcess *proc = nullptr;
 	QTimer poll;
 	EngineStatus st;
+	QString lastLine;
 };

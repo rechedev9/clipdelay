@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/flv"
+	"github.com/rechedev9/clipdelay/internal/flv"
 )
 
 // Step is one result of Reader.Next.

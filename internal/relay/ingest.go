@@ -9,8 +9,8 @@ import (
 	rtmp "github.com/yutopp/go-rtmp"
 	rtmpmsg "github.com/yutopp/go-rtmp/message"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/delay"
-	"github.com/rechedev9/cliphub/clipdelay/internal/flv"
+	"github.com/rechedev9/clipdelay/internal/delay"
+	"github.com/rechedev9/clipdelay/internal/flv"
 )
 
 var errNotPublishing = errors.New("relay: media before publish")

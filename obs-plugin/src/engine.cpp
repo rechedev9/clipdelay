@@ -1,8 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (C) 2026 Luis Reche
 #include "engine.hpp"
 
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 
 #include <obs-module.h>
 #include <plugin-support.h>
@@ -16,6 +19,7 @@ Engine::Engine(QObject *parent) : QObject(parent)
 void Engine::start(const EngineConfig &cfg)
 {
 	stop();
+	lastLine.clear();
 	proc = new QProcess(this);
 	proc->setProcessChannelMode(QProcess::MergedChannels);
 	// The stream key travels in the environment, never on the command line other processes can read.
@@ -36,6 +40,8 @@ void Engine::start(const EngineConfig &cfg)
 	connect(proc, &QProcess::finished, this, [this](int code) {
 		obs_log(LOG_INFO, "engine exited with code %d", code);
 		st = EngineStatus{};
+		if (code != 0)
+			st.exitMessage = lastLine;
 		poll.stop();
 		emit statusChanged();
 	});
@@ -102,6 +108,8 @@ void Engine::readOutput()
 			parseStatus(line);
 		} else if (!line.isEmpty() && line != "ok") {
 			obs_log(LOG_INFO, "engine: %s", line.constData());
+			// Drop the engine's "2006/01/02 15:04:05 " log prefix; the panel shows the message alone.
+			lastLine = QString::fromUtf8(line).remove(QRegularExpression(R"(^\d{4}/\d{2}/\d{2} [\d:]{8} )"));
 		}
 	}
 }

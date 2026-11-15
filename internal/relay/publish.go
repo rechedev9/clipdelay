@@ -13,9 +13,9 @@ import (
 	rtmp "github.com/yutopp/go-rtmp"
 	rtmpmsg "github.com/yutopp/go-rtmp/message"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/delay"
-	"github.com/rechedev9/cliphub/clipdelay/internal/flv"
-	"github.com/rechedev9/cliphub/clipdelay/internal/timeline"
+	"github.com/rechedev9/clipdelay/internal/delay"
+	"github.com/rechedev9/clipdelay/internal/flv"
+	"github.com/rechedev9/clipdelay/internal/timeline"
 )
 
 // Chunk stream IDs as OBS uses them for each kind of message.

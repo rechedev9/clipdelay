@@ -1,4 +1,4 @@
-module github.com/rechedev9/cliphub/clipdelay
+module github.com/rechedev9/clipdelay
 
 go 1.26.10
 

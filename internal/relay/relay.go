@@ -13,7 +13,7 @@ import (
 
 	rtmp "github.com/yutopp/go-rtmp"
 
-	"github.com/rechedev9/cliphub/clipdelay/internal/delay"
+	"github.com/rechedev9/clipdelay/internal/delay"
 )
 
 // MaxDelay is the largest delay a viewer can be behind.

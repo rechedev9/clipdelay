@@ -1,12 +1,12 @@
 # ClipDelay
 
-A local RTMP relay for OBS with a delay that changes while the stream stays up. OBS encodes once and
-publishes to `rtmp://127.0.0.1:1935/live`; ClipDelay keeps the compressed tags in memory and forwards
-them to the platform. A delay change jumps to a video keyframe, and the publisher rewrites
+A local RTMP relay for OBS with a delay that changes while the stream stays up, and the OBS plugin
+that drives it. OBS encodes once and publishes to the relay; the relay keeps the compressed tags in
+memory and forwards them to the platform. A delay change jumps to a video keyframe, and the publisher rewrites
 timestamps so the platform sees one continuous stream. Nothing is decoded or re-encoded.
 
-ClipDelay is its own product and its own Go module. It shares no code, checks or release with
-ClipHub Studio or ClipMind; the root `go test ./...` does not enter this folder.
+The user-facing docs are `README.md` and `docs/`. Keep them in step with the code: a change to a
+control, a status message, the install layout or a limit updates them in the same commit.
 
 ## Layout
 
@@ -44,7 +44,7 @@ ClipHub Studio or ClipMind; the root `go test ./...` does not enter this folder.
 
 ## Check
 
-- `go vet ./...` and `go test -race ./...` from this folder.
+- `go vet ./...` and `go test -race ./...` from the repository root.
 - `internal/relay/relay_test.go` runs a fake OBS and a fake platform on loopback. Its timing
   tolerances are wide on purpose; do not tighten them to make a run look better.
 - A real-codec run (FFmpeg x264/AAC 1080p60 at 6 Mb/s into the relay, `ffmpeg -listen 1` as the
@@ -69,3 +69,20 @@ The reader reports five phases (filling, live, delayed, changing, returning), no
 seven. The publisher does not send `releaseStream`/`FCPublish`; check each platform with a real
 OBS run before relying on it. go-rtmp waits for handshake replies without a deadline, so
 `connect` gives up after 15 s and leaves that goroutine to close the connection if it ever returns.
+
+## Rules
+
+- Source files stay at or under 1000 lines.
+- No CI on pushes or pull requests; run the checks above before a release.
+- Never write a stream key, token or `settings.json`/`service.json` contents into code, docs, logs
+  or issues.
+- User-facing text has no em or en dashes.
+
+## Release
+
+1. Bump `version` in `obs-plugin/buildspec.json`.
+2. Run the Go checks, build the plugin, and check it by hand in a portable OBS.
+3. `cmake --install obs-plugin/build_x64 --config RelWithDebInfo --prefix <dir>`, zip
+   `<dir>/clipdelay` without the `.pdb` as `clipdelay-<version>-windows-x64.zip`, and write its
+   SHA-256 to `SHA256SUMS.txt` in the `sha256sum` format.
+4. Tag `v<version>` and attach both files to a GitHub release.
