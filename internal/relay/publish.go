@@ -257,7 +257,11 @@ func (o *output) forward(step delay.Step) error {
 	}
 	ts := uint32(0)
 	if !f.Is(flv.FlagMeta) {
-		ts = o.tl.Map(timeline.Sample{Time: f.Time, Video: f.Is(flv.FlagVideo), Disc: step.Discontinuity})
+		s := timeline.Sample{Time: f.Time, Video: f.Is(flv.FlagVideo), Disc: step.Discontinuity}
+		if s.Video {
+			s.CTS = flv.CompositionTime(f.Data)
+		}
+		ts = o.tl.Map(s)
 	}
 	return o.write(f, ts)
 }

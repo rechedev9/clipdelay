@@ -99,3 +99,23 @@ func enhancedVideoFlags(b byte) uint8 {
 	}
 	return 0
 }
+
+// CompositionTime returns a video tag's presentation offset in ms: with B-frames a frame is shown
+// later than it is decoded. Tags that carry no offset return 0.
+func CompositionTime(data []byte) int32 {
+	if len(data) < 1 {
+		return 0
+	}
+	at := -1
+	switch b := data[0]; {
+	case b&0x80 != 0 && b&0x0F == 1: // Enhanced CodedFrames: the offset follows the FourCC.
+		at = 5
+	case b&0x80 == 0 && (b&0x0F == 7 || b&0x0F == 12) && len(data) > 1 && data[1] == 1:
+		at = 2
+	}
+	if at < 0 || len(data) < at+3 {
+		return 0
+	}
+	v := int32(data[at])<<16 | int32(data[at+1])<<8 | int32(data[at+2])
+	return v << 8 >> 8 // sign-extend the 24-bit value
+}

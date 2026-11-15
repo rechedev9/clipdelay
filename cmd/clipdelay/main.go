@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,6 +34,7 @@ func main() {
 	matchDelay := flag.Duration("match-delay", 3*time.Minute, "delay the partida command sets")
 	retain := flag.Duration("retain", 5*time.Minute, "history kept in memory; the largest delay")
 	maxMB := flag.Int64("max-mb", 512, "hard cap on buffered stream data, in MB")
+	control := flag.Bool("control", false, "run under the OBS plugin: exit once stdin closes and the output drained")
 	flag.Parse()
 
 	// Buffered video is pointer-free bytes, so collecting more often costs little CPU and keeps the
@@ -61,29 +63,40 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	log.Printf("OBS: rtmp://%s/live  (%s)", ln.Addr(), usage)
-	go commands(rl, *matchDelay, stop)
+	c := console{rl: rl, matchDelay: *matchDelay, control: *control, stop: stop}
+	go c.run()
 	if err := rl.Serve(ctx, ln); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func commands(rl *relay.Relay, matchDelay time.Duration, stop func()) {
+// console reads commands from stdin: a person typing, or the OBS plugin.
+type console struct {
+	rl         *relay.Relay
+	matchDelay time.Duration
+	control    bool
+	stop       func()
+}
+
+func (c console) run() {
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		line := strings.TrimSpace(in.Text())
 		switch line {
 		case "":
 		case "quit", "exit":
-			stop()
+			c.stop()
 			return
 		case "status":
-			printStatus(rl.Status())
+			printStatus(c.rl.Status())
+		case "json":
+			printJSON(c.rl.Status())
 		case "live":
-			report(rl.SetDelay(0))
+			report(c.rl.SetDelay(0))
 		case "partida", "match":
-			report(rl.SetDelay(matchDelay))
+			report(c.rl.SetDelay(c.matchDelay))
 		case "fin", "end":
-			rl.EndMatch()
+			c.rl.EndMatch()
 			report(nil)
 		default:
 			d, err := parseDelay(line)
@@ -91,8 +104,23 @@ func commands(rl *relay.Relay, matchDelay time.Duration, stop func()) {
 				fmt.Println(usage)
 				continue
 			}
-			report(rl.SetDelay(d))
+			report(c.rl.SetDelay(d))
 		}
+	}
+	if c.control {
+		c.stopWhenDrained()
+	}
+}
+
+// stopWhenDrained runs after OBS closed: the viewers still get the delayed tail before the exit.
+func (c console) stopWhenDrained() {
+	for {
+		s := c.rl.Status()
+		if !s.Ingesting && s.Upstream.State == "" {
+			c.stop()
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
@@ -125,4 +153,26 @@ func printStatus(s relay.Status) {
 	if s.Upstream.LastError != "" {
 		fmt.Println("last error:", s.Upstream.LastError)
 	}
+}
+
+type jsonStatus struct {
+	Phase      string `json:"phase"`
+	TargetMs   int64  `json:"target_ms"`
+	AppliedMs  int64  `json:"applied_ms"`
+	ReadyInMs  int64  `json:"ready_in_ms"`
+	Ingesting  bool   `json:"ingesting"`
+	BufferMB   int64  `json:"buffer_mb"`
+	Upstream   string `json:"upstream"`
+	Reconnects int    `json:"reconnects"`
+	LastError  string `json:"last_error"`
+}
+
+// printJSON writes the status as one line for the OBS plugin.
+func printJSON(s relay.Status) {
+	line, _ := json.Marshal(jsonStatus{
+		Phase: s.Reader.Phase, TargetMs: s.Reader.Target.Milliseconds(), AppliedMs: s.Reader.Applied.Milliseconds(),
+		ReadyInMs: s.Reader.ReadyIn.Milliseconds(), Ingesting: s.Ingesting, BufferMB: s.Buffer.Bytes >> 20,
+		Upstream: s.Upstream.State, Reconnects: s.Upstream.Reconnects, LastError: s.Upstream.LastError,
+	})
+	fmt.Println(string(line))
 }

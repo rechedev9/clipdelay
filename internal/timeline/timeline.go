@@ -11,11 +11,13 @@ const (
 	stepWindow = 300
 )
 
-// Sample is one tag to map: its source time, whether it is video, and whether it follows a jump.
+// Sample is one tag to map: its source time, whether it is video, whether it follows a jump, and
+// for video the composition offset (presentation time minus Time).
 type Sample struct {
 	Time  uint32
 	Video bool
 	Disc  bool
+	CTS   int32
 }
 
 // Mapper maps source milliseconds to output milliseconds. Audio and video share one offset, so
@@ -26,6 +28,8 @@ type Mapper struct {
 	lastVideo int64
 	lastAudio int64
 	lastAny   int64
+	// maxShown is the latest presentation time of any video frame sent.
+	maxShown  int64
 	lastSrc   int64
 	prevVideo int64
 	havePrev  bool
@@ -44,7 +48,12 @@ func (m *Mapper) Map(in Sample) uint32 {
 	case !m.started:
 		m.started, m.offset = true, -s
 	case in.Disc || s < m.lastSrc-jitterMs:
-		m.offset = m.lastAny + m.step() - s
+		next := m.lastAny + m.step()
+		if in.Video {
+			// The new segment's first frame must also be shown after every frame already sent.
+			next = max(next, m.maxShown+m.step()-int64(in.CTS))
+		}
+		m.offset = next - s
 		m.havePrev = false
 	}
 	last := &m.lastAudio
@@ -54,6 +63,9 @@ func (m *Mapper) Map(in Sample) uint32 {
 	}
 	out := max(s+m.offset, *last, 0)
 	*last = out
+	if in.Video {
+		m.maxShown = max(m.maxShown, out+int64(in.CTS))
+	}
 	m.lastAny = max(m.lastAny, out)
 	m.lastSrc = s
 	return uint32(out)
