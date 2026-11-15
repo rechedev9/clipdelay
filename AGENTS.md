@@ -40,8 +40,8 @@ ClipHub Studio or ClipMind; the root `go test ./...` does not enter this folder.
 - `internal/relay/relay_test.go` runs a fake OBS and a fake platform on loopback. Its timing
   tolerances are wide on purpose; do not tighten them to make a run look better.
 - A real-codec run (FFmpeg x264/AAC 1080p60 at 6 Mb/s into the relay, `ffmpeg -listen 1` as the
-  platform) decoded with no errors or timestamp gaps through two partida/fin cycles. Process memory
-  is about twice the buffered bytes, so budget `-max-mb` against that.
+  platform) decoded with no errors or timestamp gaps through two partida/fin cycles. With the CLI's
+  GC percent of 25, process memory is about 1.6 times the buffered bytes (125 MB for 77 MB).
 
 ## Not built yet
 

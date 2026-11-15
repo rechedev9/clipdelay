@@ -23,6 +23,7 @@ type ingestHandler struct {
 	buf     *delay.Buffer
 	claimed bool
 	started bool
+	scratch bytes.Buffer
 }
 
 func (h *ingestHandler) OnPublish(_ *rtmp.StreamContext, _ uint32, cmd *rtmpmsg.NetStreamPublish) error {
@@ -47,12 +48,13 @@ func (h *ingestHandler) OnVideo(ts uint32, payload io.Reader) error {
 }
 
 // pushReader copies the payload: the library reuses its buffer after the callback returns.
+// Reading into a reused scratch buffer first keeps it to one exact-size allocation per frame.
 func (h *ingestHandler) pushReader(f flv.Frame, payload io.Reader) error {
-	data, err := io.ReadAll(payload)
-	if err != nil {
+	h.scratch.Reset()
+	if _, err := h.scratch.ReadFrom(payload); err != nil {
 		return err
 	}
-	f.Data = data
+	f.Data = bytes.Clone(h.scratch.Bytes())
 	return h.push(f)
 }
 

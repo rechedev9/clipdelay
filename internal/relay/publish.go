@@ -211,6 +211,10 @@ type output struct {
 func (o *output) pump(ctx context.Context, rd *delay.Reader) error {
 	r := o.pub.relay
 	buf := r.buffer()
+	// One timer for the whole session: the pump waits between almost every frame.
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
+	defer timer.Stop()
 	for {
 		wake, changed, ended := buf.Wake(), rd.Changed(), r.ingestEndedCh()
 		step := rd.Next(r.now())
@@ -225,9 +229,10 @@ func (o *output) pump(ctx context.Context, rd *delay.Reader) error {
 		case step.Wait == 0 && r.finishIfDrained(o.pub):
 			return nil
 		}
-		var timer <-chan time.Time
+		var due <-chan time.Time
 		if step.Wait > 0 {
-			timer = time.After(step.Wait)
+			timer.Reset(step.Wait)
+			due = timer.C
 		}
 		select {
 		case <-ctx.Done():
@@ -235,8 +240,9 @@ func (o *output) pump(ctx context.Context, rd *delay.Reader) error {
 		case <-wake:
 		case <-changed:
 		case <-ended:
-		case <-timer:
+		case <-due:
 		}
+		timer.Stop()
 	}
 }
 

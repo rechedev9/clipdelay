@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,9 @@ func main() {
 	maxMB := flag.Int64("max-mb", 512, "hard cap on buffered stream data, in MB")
 	flag.Parse()
 
+	// Buffered video is pointer-free bytes, so collecting more often costs little CPU and keeps the
+	// process near the buffered size instead of the default 2x.
+	debug.SetGCPercent(25)
 	// The RTMP library logs to the global logger, sometimes with connection details.
 	logrus.SetOutput(io.Discard)
 	if *matchDelay > *retain {
