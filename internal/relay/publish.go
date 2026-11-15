@@ -121,7 +121,12 @@ func (p *publisher) session(ctx context.Context) error {
 	p.setState(StateLive, nil)
 	p.relay.cfg.Logf("upstream %s connected", p.up)
 	out := &output{pub: p, stream: stream, tl: timeline.New(), sent: map[uint8][]byte{}}
-	return out.pump(ctx, p.relay.newReader())
+	if err := out.pump(ctx, p.relay.newReader()); err != nil {
+		return err
+	}
+	// Drained: end the stream the way an encoder does, so the platform does not see a dropped link.
+	_ = client.DeleteStream(&rtmpmsg.NetStreamDeleteStream{StreamID: stream.StreamID()})
+	return nil
 }
 
 type connected struct {

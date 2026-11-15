@@ -136,6 +136,16 @@ func (r *Relay) SetDelay(d time.Duration) error {
 	return nil
 }
 
+// EndMatch goes live once viewers have seen everything up to now, so they never miss the end.
+func (r *Relay) EndMatch() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.target = 0
+	if r.reader != nil {
+		r.reader.LiveWhenCaughtUp(r.now())
+	}
+}
+
 func (r *Relay) Status() Status {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -222,7 +232,9 @@ func (r *Relay) finishIfDrained(p *publisher) bool {
 	if r.ingesting || r.pub != p {
 		return false
 	}
-	r.pub, r.reader = nil, nil
+	// Release the buffer: an idle relay should not hold minutes of video until the next session.
+	r.buf.Close()
+	r.pub, r.reader, r.buf = nil, nil, nil
 	r.cfg.Logf("delayed output drained, upstream closed")
 	return true
 }

@@ -23,6 +23,8 @@ const (
 	PhaseLive     = "live"
 	PhaseDelayed  = "delayed"
 	PhaseChanging = "changing"
+	// PhaseReturning keeps the delay until viewers have seen the moment live was asked for.
+	PhaseReturning = "returning"
 )
 
 // Status is what a control surface shows: the delay asked for and the delay viewers get.
@@ -58,6 +60,9 @@ type Reader struct {
 	lastRecv int64
 	jumps    int
 	changed  chan struct{}
+	// returning goes live once a frame received at or after returnAt has been emitted.
+	returning bool
+	returnAt  int64
 }
 
 func NewReader(b *Buffer) *Reader {
@@ -69,6 +74,25 @@ func NewReader(b *Buffer) *Reader {
 func (r *Reader) SetTarget(d time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.returning = false
+	r.setTarget(d)
+}
+
+// LiveWhenCaughtUp goes live once viewers have seen everything received up to now, so ending a
+// match never skips its last minutes. A later SetTarget cancels it.
+func (r *Reader) LiveWhenCaughtUp(now int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.applied == 0 && !r.pending {
+		r.setTarget(0)
+		return
+	}
+	r.returning, r.returnAt = true, now
+	close(r.changed)
+	r.changed = make(chan struct{})
+}
+
+func (r *Reader) setTarget(d time.Duration) {
 	r.target = max(d, 0)
 	r.pending = true
 	close(r.changed)
@@ -123,6 +147,10 @@ func (r *Reader) Next(now int64) Step {
 		}
 		step := Step{Frame: f, OK: true, Discontinuity: r.disc && r.emitted}
 		r.disc, r.emitted, r.lastRecv = false, true, f.Recv
+		if r.returning && f.Recv >= r.returnAt {
+			r.returning = false
+			r.setTarget(0)
+		}
 		return step
 	}
 }
@@ -201,6 +229,9 @@ func (r *Reader) Status(now int64) Status {
 	switch {
 	case !r.emitted:
 		s.Phase = PhaseFilling
+	case r.returning:
+		s.Phase = PhaseReturning
+		s.ReadyIn = max(time.Duration(r.returnAt+int64(r.applied)-now), 0)
 	case r.pending:
 		s.Phase = PhaseChanging
 		if k, ok := r.buf.OldestKey(); ok {

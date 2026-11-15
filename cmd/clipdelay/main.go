@@ -22,18 +22,23 @@ import (
 	"github.com/rechedev9/cliphub/clipdelay/internal/relay"
 )
 
-const usage = `commands: <seconds> or a duration (30, 90s, 2m) sets the delay, live, status, quit`
+const usage = "comandos: partida (delay de partida), fin (directo cuando el público vea el final), " +
+	"<segundos> o una duración (30, 90s, 2m), live (directo ya), status, quit"
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:1935", "address OBS publishes to")
 	ingestKey := flag.String("ingest-key", "", "stream key OBS must use (empty accepts any)")
 	initial := flag.Duration("delay", 0, "delay at start")
+	matchDelay := flag.Duration("match-delay", 3*time.Minute, "delay the partida command sets")
 	retain := flag.Duration("retain", 5*time.Minute, "history kept in memory; the largest delay")
 	maxMB := flag.Int64("max-mb", 512, "hard cap on buffered stream data, in MB")
 	flag.Parse()
 
 	// The RTMP library logs to the global logger, sometimes with connection details.
 	logrus.SetOutput(io.Discard)
+	if *matchDelay > *retain {
+		log.Fatalf("-match-delay %s needs -retain of at least that much", *matchDelay)
+	}
 	upstream := os.Getenv("CLIPDELAY_UPSTREAM")
 	if upstream == "" {
 		log.Fatal("set CLIPDELAY_UPSTREAM to the platform URL with the stream key, e.g. rtmp://live.twitch.tv/app/<key>")
@@ -52,13 +57,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	log.Printf("OBS: rtmp://%s/live  (%s)", ln.Addr(), usage)
-	go commands(rl, stop)
+	go commands(rl, *matchDelay, stop)
 	if err := rl.Serve(ctx, ln); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func commands(rl *relay.Relay, stop func()) {
+func commands(rl *relay.Relay, matchDelay time.Duration, stop func()) {
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		line := strings.TrimSpace(in.Text())
@@ -71,6 +76,11 @@ func commands(rl *relay.Relay, stop func()) {
 			printStatus(rl.Status())
 		case "live":
 			report(rl.SetDelay(0))
+		case "partida", "match":
+			report(rl.SetDelay(matchDelay))
+		case "fin", "end":
+			rl.EndMatch()
+			report(nil)
 		default:
 			d, err := parseDelay(line)
 			if err != nil {

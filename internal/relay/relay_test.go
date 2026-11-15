@@ -175,6 +175,9 @@ func TestRelayChangesTheDelayOnKeyframesWithoutDroppingTheUpstream(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("upstream was not closed after the output drained")
 	}
+	if st := rl.Status(); st.Buffer.Bytes != 0 {
+		t.Fatalf("an idle relay still buffers %d bytes", st.Buffer.Bytes)
+	}
 	cancel()
 	must(t, <-served)
 

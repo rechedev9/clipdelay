@@ -260,3 +260,60 @@ func TestAJumpSendsTheHeadersInEffectAtTheKeyframeItLandsOn(t *testing.T) {
 		t.Fatalf("after the jump back = %+v, want the first session's header then the 3000 ms keyframe", got[:min(2, len(got))])
 	}
 }
+
+func TestEndingTheMatchKeepsTheDelayUntilViewersSawTheEndThenGoesLive(t *testing.T) {
+	b := NewBuffer(Options{Retain: time.Minute, MaxBytes: 1 << 20})
+	r := NewReader(b)
+	r.SetTarget(30 * time.Second)
+	feed(t, span{b, 0, 40_000})
+	drain(r, 40_000)
+
+	// The match ends at 40 s; viewers are 30 s behind, so they see the end at 70 s.
+	r.LiveWhenCaughtUp(40_000 * ms)
+	feed(t, span{b, 40_000, 60_000})
+	got := drain(r, 60_000)
+	if len(got) == 0 || recvMs(got[len(got)-1]) != 30_000 || r.Status(60_000*ms).Phase != PhaseReturning {
+		t.Fatalf("at 60 s the last frame is %d ms in phase %s, want 30000 ms still delayed and returning",
+			recvMs(got[len(got)-1]), r.Status(60_000*ms).Phase)
+	}
+
+	feed(t, span{b, 60_000, 70_100})
+	got = drain(r, 70_100)
+	var jumped *Step
+	for i := range got {
+		if got[i].Discontinuity {
+			jumped = &got[i]
+			break
+		}
+	}
+	if jumped == nil || recvMs(*jumped) != 70_000 || !jumped.Frame.Is(flv.FlagKey) {
+		t.Fatalf("after viewers saw 40 s, want a jump to the live keyframe at 70000 ms, got %+v", jumped)
+	}
+	for _, s := range got {
+		if s.Discontinuity {
+			break
+		}
+		if recvMs(s) > 40_000 {
+			t.Fatalf("emitted %d ms of the delayed backlog after the end of the match", recvMs(s))
+		}
+	}
+	if st := r.Status(70_100 * ms); st.Phase != PhaseLive || st.Target != 0 {
+		t.Fatalf("status = %+v, want live", st)
+	}
+}
+
+func TestSettingADelayCancelsAPendingReturnToLive(t *testing.T) {
+	b := NewBuffer(Options{Retain: time.Minute, MaxBytes: 1 << 20})
+	r := NewReader(b)
+	r.SetTarget(10 * time.Second)
+	feed(t, span{b, 0, 20_000})
+	drain(r, 20_000)
+	r.LiveWhenCaughtUp(20_000 * ms)
+	r.SetTarget(10 * time.Second)
+	feed(t, span{b, 20_000, 31_000})
+	for _, s := range drain(r, 31_000) {
+		if s.Discontinuity {
+			t.Fatalf("jumped at %d ms after the return was cancelled", recvMs(s))
+		}
+	}
+}
