@@ -20,17 +20,29 @@ Download `clipdelay-<version>-windows-x64.zip` from the
 zip into `C:\ProgramData\obs-studio\plugins\`:
 
 ```powershell
-Expand-Archive clipdelay-0.1.0-windows-x64.zip -DestinationPath "$env:ProgramData\obs-studio\plugins"
+Expand-Archive clipdelay-0.1.1-windows-x64.zip -DestinationPath "$env:ProgramData\obs-studio\plugins"
 ```
 
 You end up with `C:\ProgramData\obs-studio\plugins\clipdelay\`. Needs OBS 31 or newer on Windows
 10 or 11 (x64).
 
-**With an AI agent.** Point Claude Code, Codex or any coding agent at the
-[agent install guide](docs/agent-install.md):
+**Check where the zip came from.** Releases are built by GitHub Actions from the tagged commit
+([release.yml](.github/workflows/release.yml)), never on a developer's PC, and GitHub signs a build
+provenance attestation for each zip. With the [GitHub CLI](https://cli.github.com):
+
+```powershell
+gh attestation verify clipdelay-0.1.1-windows-x64.zip --repo rechedev9/clipdelay
+```
+
+It names the workflow and the commit the zip was built from. `0.1.0` was built by hand and has no
+attestation; use `0.1.1` or newer, or build from source.
+
+**With an AI agent.** Most coding agents will not install a downloaded DLL, even an attested one.
+Ask them to build it from source instead; the [agent install guide](docs/agent-install.md) has the
+steps:
 
 ```text
-Install ClipDelay for OBS following https://github.com/rechedev9/clipdelay/blob/main/docs/agent-install.md
+Build and install ClipDelay for OBS from source following https://github.com/rechedev9/clipdelay/blob/main/docs/agent-install.md
 ```
 
 ## Quick start
@@ -96,14 +108,16 @@ Known limits:
 - Windows only.
 - OBS multitrack streaming (Twitch Enhanced Broadcasting) is not supported.
 - A reconnect to the platform after a real network cut has not been tested yet.
-- The binaries are not code-signed.
+- The binaries are not code-signed. Releases from `0.1.1` carry a GitHub build attestation instead.
 
 ## Build from source
 
-Needs Visual Studio 2022 (C++ workload), CMake 3.28+, and Go 1.26.
+Needs Git, Visual Studio 2022 (C++ workload, Windows SDK 10.0.26100), CMake 3.28+, and Go 1.26.
+Build from a release tag, not `main`:
 
 ```powershell
-cd obs-plugin
+git clone --branch v0.1.1 --depth 1 https://github.com/rechedev9/clipdelay
+cd clipdelay\obs-plugin
 cmake --preset windows-x64          # first run downloads OBS sources, obs-deps and Qt into .deps
 cmake --build build_x64 --config RelWithDebInfo
 cmake --install build_x64 --config RelWithDebInfo --prefix "$env:ProgramData\obs-studio\plugins"

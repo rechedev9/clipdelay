@@ -73,16 +73,25 @@ OBS run before relying on it. go-rtmp waits for handshake replies without a dead
 ## Rules
 
 - Source files stay at or under 1000 lines.
-- No CI on pushes or pull requests; run the checks above before a release.
+- No CI on pushes or pull requests; run the checks above before a release. The one workflow is
+  `release.yml`, on `v*` tags and manual runs.
+- Release binaries come only from `release.yml`, never from a local build, so every zip carries a
+  GitHub build attestation. Do not attach hand-built files to a release.
+- `docs/agent-install.md` leads with building from source: agents often refuse to install a
+  downloaded DLL. Keep its steps, file list and tool versions in step with `CMakeLists.txt`,
+  `CMakePresets.json` and `buildspec.json`.
 - Never write a stream key, token or `settings.json`/`service.json` contents into code, docs, logs
   or issues.
 - User-facing text has no em or en dashes.
 
 ## Release
 
-1. Bump `version` in `obs-plugin/buildspec.json`.
+1. Bump `version` in `obs-plugin/buildspec.json` and the version examples in `README.md` and
+   `docs/agent-install.md`.
 2. Run the Go checks, build the plugin, and check it by hand in a portable OBS.
-3. `cmake --install obs-plugin/build_x64 --config RelWithDebInfo --prefix <dir>`, zip
-   `<dir>/clipdelay` without the `.pdb` as `clipdelay-<version>-windows-x64.zip`, and write its
-   SHA-256 to `SHA256SUMS.txt` in the `sha256sum` format.
-4. Tag `v<version>` and attach both files to a GitHub release.
+3. Optional dry run: `gh workflow run release.yml` builds the zip as a workflow artifact and
+   publishes nothing.
+4. Push the tag `v<version>`. `release.yml` checks that the tag matches `buildspec.json`, runs the
+   Go checks, builds, zips `clipdelay` without the `.pdb` as `clipdelay-<version>-windows-x64.zip`,
+   writes `SHA256SUMS.txt`, attests the zip and publishes the release.
+5. Check it: `gh attestation verify clipdelay-<version>-windows-x64.zip --repo rechedev9/clipdelay`.
